@@ -18,11 +18,20 @@ jobs:
     - name: 检出源码
       uses: actions/checkout@v4
 
+    - name: 缓存 ccache
+      uses: actions/cache@v4
+      with:
+        path: ~/.ccache
+        key: ${{ runner.os }}-ccache-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-ccache-
+
     - name: 安装依赖
       run: |
         sudo sed -i "s/^Types: deb$/Types: deb deb-src/" /etc/apt/sources.list.d/ubuntu.sources
         sudo apt update
         sudo apt-get build-dep mesa -y
+        sudo apt-get install -y ninja-build meson python3-mako ccache
 
     - name: 克隆 Mesa
       run: |
@@ -35,28 +44,37 @@ jobs:
       run: |
         cd mesa
         sudo mkdir -p /data/data/com.termux/files/usr/glibc
-        sudo chmod 777 -R /data
+        sudo chmod 777 /data/data/com.termux/files/usr/glibc
+
+        export CC="ccache gcc"
+        export CXX="ccache g++"
+        export CCACHE_DIR=~/.ccache
+        ccache -M 2G
 
         mkdir -p builddir
         meson setup builddir \
           --libdir=lib \
           --prefix=/data/data/com.termux/files/usr/glibc \
-          -D opengl=true \
-          -D gles1=enabled \
-          -D gles2=enabled \
-          -D platforms=x11 \
-          -D glvnd=disabled \
-          -D gallium-drivers=zink,llvmpipe \
-          -D vulkan-drivers=[] \
-          -D llvm=enabled \
-          -D glx=xlib \
-          -D glx-direct=true \
-          -D xlib-lease=enabled
+          -Dbuildtype=release \
+          -Dgallium-drivers=zink \
+          -Dvulkan-drivers= \
+          -Dglvnd=disabled \
+          -Dplatforms=x11 \
+          -Dxmlconfig=enabled \
+          -Dllvm=disabled \
+          -Dopengl=true \
+          -Dvideo-codecs=all \
+          -Dmediafoundation-codecs=all \
+          -Degl=disabled
 
-        ninja -C builddir
+        ninja -C builddir -j$(nproc)
         ninja -C builddir install
 
-        VERSION=$(cat VERSION)
+        if [ -f VERSION ]; then
+          VERSION=$(cat VERSION)
+        else
+          VERSION=$(git describe --tags --always)
+        fi
         echo "VERSION=$VERSION" >> $GITHUB_ENV
 
         tar -czf termux-glibc-zink-${VERSION}-aarch64.tar.gz /data/data/com.termux/files/usr/glibc
@@ -72,7 +90,7 @@ jobs:
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ github.ref_name }}
-        name: zink ${{ env.VERSION }} (aarch64, Termux glibc)
+        name: Mesa ${{ env.VERSION }} - Zink (aarch64, Termux glibc)
         files: termux-glibc-zink-${{ env.VERSION }}-aarch64.tar.gz
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
