@@ -26,7 +26,7 @@ jobs:
 
     - name: 克隆 Mesa
       run: |
-        git clone https://gitlab.freedesktop.org/mesa/mesa.git
+        git clone https://gitlab.freedesktop.org/Swung0x48/mesa.git
         cd mesa
         # 如果需要固定版本，可以取消下面注释
         # git checkout mesa-24.2.5
