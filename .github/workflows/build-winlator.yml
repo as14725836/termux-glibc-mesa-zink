@@ -34,13 +34,13 @@ jobs:
     - name: 构建 Mesa
       run: |
         cd mesa
-        sudo mkdir -p /data/data/com.winlator/files/rootfs/
+        sudo mkdir -p /data/data/com.winlator/files/rootfs
         sudo chmod 777 -R /data
 
         mkdir -p builddir
         meson setup builddir \
           --libdir=lib \
-          --prefix=/data/data/com.winlator/files/rootfs/ \
+          --prefix=/data/data/com.winlator/files/rootfs \
           -Dbuildtype=release \
           -Dgallium-drivers=zink \
           -Dvulkan-drivers= \
@@ -59,7 +59,7 @@ jobs:
         VERSION=$(cat VERSION)
         echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-        tar -czf winlator-glibc-zink-${VERSION}-aarch64.tar.gz /data/data/com.termux/files/usr/glibc
+        tar -czf winlator-glibc-zink-${VERSION}-aarch64.tar.gz /data/data/com.winlator/files/rootfs
         mv winlator-glibc-zink-${VERSION}-aarch64.tar.gz ..
 
     - name: 上传构建产物
