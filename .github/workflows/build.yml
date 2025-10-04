@@ -26,21 +26,26 @@ jobs:
         sudo apt install -y \
           meson \
           ninja-build \
+          pkg-config \
           libdrm-dev \
           libglvnd-dev \
           libx11-dev \
           libxext-dev \
           libxfixes-dev \
           libxdamage-dev \
+          libxcb1-dev \
           libxcb-glx0-dev \
           libxcb-dri2-0-dev \
           libxcb-dri3-dev \
           libxcb-present-dev \
+          libxcb-sync-dev \
+          libxcb-shm-dev \
           libxshmfence-dev \
           libxxf86vm-dev \
           libxrandr-dev \
-          bison flex python3-mako \
-          pkg-config
+          libwayland-dev \
+          wayland-protocols \
+          bison flex python3-mako
         
     - name: 克隆 Mesa
       run: |
