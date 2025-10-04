@@ -24,6 +24,8 @@ jobs:
         sudo sed -i "s/^Types: deb$/Types: deb deb-src/" /etc/apt/sources.list.d/ubuntu.sources
         sudo apt update
         sudo apt install -y \
+          meson \
+          ninja-build \
           libdrm-dev \
           libglvnd-dev \
           libx11-dev \
@@ -37,11 +39,12 @@ jobs:
           libxshmfence-dev \
           libxxf86vm-dev \
           libxrandr-dev \
-          bison flex python3-mako
+          bison flex python3-mako \
+          pkg-config
         
     - name: 克隆 Mesa
       run: |
-        git clone https://gitlab.freedesktop.org/Swung0x48/mesa.git
+        git clone https://gitlab.freedesktop.org/mesa/mesa.git
         cd mesa
         # 如果需要特定分支
         git checkout 24.0-kopper-android
