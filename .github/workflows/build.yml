@@ -44,7 +44,7 @@ jobs:
           -Dbuildtype=release \
           -Dgallium-drivers=zink \
           -Dvulkan-drivers= \
-          -Dglvnd=disabled \
+          -Dglvnd=false \
           -Dplatforms=x11 \
           -Dxmlconfig=enabled \
           -Dllvm=disabled \
