@@ -44,7 +44,7 @@ jobs:
         
     - name: 克隆 Mesa
       run: |
-        git clone https://gitlab.freedesktop.org/mesa/mesa.git
+        git clone https://gitlab.freedesktop.org/Swung0x48/mesa.git
         cd mesa
         # 如果需要特定分支
         git checkout 24.0-kopper-android
