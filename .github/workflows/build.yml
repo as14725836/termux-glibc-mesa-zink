@@ -36,7 +36,7 @@ jobs:
           libxcb1-dev \
           libxcb-glx0-dev \
           libxcb-dri2-0-dev \
-          meson \
+          meson-dev \
           libxcb-dri3-dev \
           libxcb-present-dev \
           libxcb-sync-dev \
