@@ -5,8 +5,7 @@ on:
   push:
     branches:
       - main
-    tags:
-      - 'v*'
+      - 'refs/tags/**'
 
 permissions:
   contents: write  # 允许 GITHUB_TOKEN 创建 Release
@@ -24,22 +23,20 @@ jobs:
         sudo sed -i "s/^Types: deb$/Types: deb deb-src/" /etc/apt/sources.list.d/ubuntu.sources
         sudo apt update
         sudo apt-get build-dep mesa -y
-        sudo apt install -y python3-mako ninja-build meson pkg-config tar gzip
 
     - name: 克隆 Mesa
       run: |
         git clone https://gitlab.freedesktop.org/mesa/mesa.git
         cd mesa
-        # 如需固定版本，可取消下行注释
+        # 如果需要固定版本，可以取消下面注释
         # git checkout mesa-24.2.5
 
     - name: 构建 Mesa
       run: |
-        cd mesa
+        cd mesa 
         sudo mkdir -p /data/data/com.termux/files/usr/glibc
         sudo chmod 777 -R /data
         mkdir -p builddir
-
         meson setup builddir \
           --libdir=lib \
           --prefix=/data/data/com.termux/files/usr/glibc \
@@ -54,24 +51,17 @@ jobs:
           -Dvideo-codecs=all \
           -Dmediafoundation-codecs=all \
           -Degl=disabled
-
         ninja -C builddir
         ninja -C builddir install
-
         VERSION=$(cat VERSION)
         echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-        echo "🔧 开始打包 lib 目录..."
-
+        # ✅ 只打包 lib 目录下的库文件（不含子目录）
         cd /data/data/com.termux/files/usr/glibc
-        mkdir -p /tmp/mesa-lib
-        cd lib
-
-        # 仅复制 lib 目录下的库文件，不包含子目录内容
-        find . -maxdepth 1 -type f -name "lib*" -exec cp {} /tmp/mesa-lib/ \;
-
+        mkdir -p /tmp/lib
+        find lib -maxdepth 1 -type f -name "lib*" -exec cp {} /tmp/lib/ \;
         cd /tmp
-        tar -czf termux-glibc-zink-${VERSION}-aarch64.tar.gz -C /tmp mesa-lib
+        tar -czf termux-glibc-zink-${VERSION}-aarch64.tar.gz lib
         mv termux-glibc-zink-${VERSION}-aarch64.tar.gz $GITHUB_WORKSPACE
 
     - name: 上传构建产物
