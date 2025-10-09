@@ -5,110 +5,72 @@ on:
   push:
     branches:
       - main
-    tags:
-      - 'v*'
+      - 'refs/tags/**'
 
 permissions:
-  contents: write
+  contents: write  # 允许 GITHUB_TOKEN 创建 Release
 
 jobs:
   build:
     runs-on: ubuntu-24.04-arm
-    
+
     steps:
     - name: 检出源码
       uses: actions/checkout@v4
-      
+
     - name: 安装依赖
       run: |
         sudo sed -i "s/^Types: deb$/Types: deb deb-src/" /etc/apt/sources.list.d/ubuntu.sources
         sudo apt update
-        sudo apt install -y \
-          meson \
-          ninja-build \
-          pkg-config \
-          libdrm-dev \
-          libglvnd-dev \
-          libx11-dev \
-          libxext-dev \
-          libxfixes-dev \
-          libxdamage-dev \
-          libxcb1-dev \
-          libxcb-glx0-dev \
-          libxcb-dri2-0-dev \
-          meson-dev \
-          libxcb-dri3-dev \
-          libxcb-present-dev \
-          libxcb-sync-dev \
-          libxxf86vm-dev \
-          libxrandr-dev \
-          libwayland-dev \
-          wayland-protocols \
-          bison flex python3-mako
-        
+        sudo apt-get build-dep mesa -y
     - name: 克隆 Mesa
       run: |
         git clone https://gitlab.freedesktop.org/mesa/mesa.git
         cd mesa
-        # 如果需要特定分支
-        # git checkout mesa-25.2.4
-      
+        # 如果需要固定版本，可以取消下面注释
+        # git checkout mesa-24.2.5
     - name: 构建 Mesa
       run: |
         cd mesa
-        
-        # 创建 glibc 安装目录
-        export PREFIX_DIR="/data/data/com.termux/files/usr/glibc"
-        sudo mkdir -p $PREFIX_DIR
-        sudo chown -R $USER:$USER $PREFIX_DIR
-        
-        # 配置构建
+        sudo mkdir -p /data/data/com.termux/files/usr/glibc
+        sudo chmod 777 -R /data
         mkdir -p builddir
         meson setup builddir \
-          --prefix=$PREFIX_DIR \
           --libdir=lib \
+          --prefix=/data/data/com.termux/files/usr/glibc \
           -Dbuildtype=release \
           -Dgallium-drivers=zink \
           -Dvulkan-drivers= \
-          -Dglvnd=false \
+          -Dglvnd=disabled \
           -Dplatforms=x11 \
           -Dxmlconfig=enabled \
           -Dllvm=disabled \
           -Dopengl=true \
-          -Dgles1=disabled \
-          -Dgles2=disabled \
-          -Degl=disabled \
-          -Dglx=dri
-        
-        # 构建和安装
+          -Dvideo-codecs=all \
+          -Dmediafoundation-codecs=all \
+          -Degl=disabled
         ninja -C builddir
         ninja -C builddir install
-        
-        # 获取版本信息
-        VERSION=$(grep -m1 '"version"' meson.build | cut -d"'" -f4 || echo "24.0.9")
+        VERSION=$(cat VERSION)
         echo "VERSION=$VERSION" >> $GITHUB_ENV
-        
-    - name: 打包构建产物
-      run: |
-        cd /data/data/com.termux/files/usr/glibc/lib
-        tar -czf $GITHUB_WORKSPACE/termux-glibc-zink-${VERSION}-aarch64.tar.gz *.so
-        
+        tar -czf termux-glibc-zink-${VERSION}-aarch64.tar.gz /data/data/com.termux/files/usr/glibc
+        mv termux-glibc-zink-${VERSION}-aarch64.tar.gz ..
     - name: 上传构建产物
       uses: actions/upload-artifact@v4
       with:
         name: termux-glibc-zink-${{ env.VERSION }}-aarch64
         path: termux-glibc-zink-${{ env.VERSION }}-aarch64.tar.gz
-        
-    - name: 创建 GitHub Release
-      if: startsWith(github.ref, 'refs/tags/')
+
+    - name: 发布到 GitHub Release
       uses: softprops/action-gh-release@v1
       with:
+        tag_name: ${{ github.ref_name }}
+        name: zink ${{ env.VERSION }} (aarch64, Termux glibc)
         files: termux-glibc-zink-${{ env.VERSION }}-aarch64.tar.gz
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
+
     - name: 输出版本信息
       run: |
         echo "✅ Mesa 构建完成"
         echo "版本号: $VERSION"
-        echo "安装路径: /data/data/com.termux/files/usr/glibc/lib"
