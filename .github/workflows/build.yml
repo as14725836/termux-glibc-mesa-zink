@@ -39,7 +39,6 @@ jobs:
           libxcb-dri3-dev \
           libxcb-present-dev \
           libxcb-sync-dev \
-          libxcb-shm-dev \
           libxshmfence-dev \
           libxxf86vm-dev \
           libxrandr-dev \
