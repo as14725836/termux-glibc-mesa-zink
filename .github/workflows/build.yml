@@ -49,10 +49,10 @@ jobs:
         
     - name: 克隆 Mesa
       run: |
-        git clone https://gitlab.freedesktop.org/Swung0x48/mesa.git
+        git clone https://gitlab.freedesktop.org/mesa/mesa.git
         cd mesa
         # 如果需要特定分支
-        git checkout 24.0-kopper-android
+        # git checkout mesa-25.2.4
       
     - name: 构建 Mesa
       run: |
@@ -73,15 +73,13 @@ jobs:
           -Dvulkan-drivers= \
           -Dglvnd=false \
           -Dplatforms=x11 \
-          -Ddri3=enabled \
           -Dxmlconfig=enabled \
           -Dllvm=disabled \
           -Dopengl=true \
           -Dgles1=disabled \
           -Dgles2=disabled \
           -Degl=disabled \
-          -Dglx=dri \
-          -Dshared-glapi=enabled
+          -Dglx=dri
         
         # 构建和安装
         ninja -C builddir
@@ -93,8 +91,8 @@ jobs:
         
     - name: 打包构建产物
       run: |
-        cd /data/data/com.termux/files/usr
-        tar -czf $GITHUB_WORKSPACE/termux-glibc-zink-${VERSION}-aarch64.tar.gz glibc/
+        cd /data/data/com.termux/files/usr/glibc/lib
+        tar -czf $GITHUB_WORKSPACE/termux-glibc-zink-${VERSION}-aarch64.tar.gz *.so
         
     - name: 上传构建产物
       uses: actions/upload-artifact@v4
@@ -114,4 +112,4 @@ jobs:
       run: |
         echo "✅ Mesa 构建完成"
         echo "版本号: $VERSION"
-        echo "安装路径: /data/data/com.termux/files/usr/glibc"
+        echo "安装路径: /data/data/com.termux/files/usr/glibc/lib"
