@@ -6,6 +6,8 @@ on:
     branches:
       - main
       - 'refs/tags/**'
+  schedule:
+    - cron: '0 6 * * *'  # 🕕 每天早上 6 点自动检查 Mesa 是否有更新并构建
 
 permissions:
   contents: write  # 允许 GITHUB_TOKEN 创建 Release
@@ -15,7 +17,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
 
     steps:
-    - name: 检出源码
+    - name: 检出仓库
       uses: actions/checkout@v4
 
     - name: 安装依赖
@@ -24,18 +26,47 @@ jobs:
         sudo apt update
         sudo apt-get build-dep mesa -y
 
-    - name: 克隆 Mesa
+    - name: 克隆 Mesa 并检测更新
+      id: check_update
       run: |
-        git clone https://gitlab.freedesktop.org/mesa/mesa.git
+        git clone --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git
         cd mesa
-        # 如果需要固定版本，可以取消下面注释
-        # git checkout mesa-24.2.5
+        LATEST_COMMIT=$(git rev-parse HEAD)
+        echo "Mesa 最新提交: $LATEST_COMMIT"
 
-    - name: 构建 Mesa
+        # 获取上次构建记录文件
+        if [ -f ../last_mesa_commit.txt ]; then
+          LAST_COMMIT=$(cat ../last_mesa_commit.txt)
+          echo "上次构建提交: $LAST_COMMIT"
+        else
+          LAST_COMMIT="none"
+        fi
+
+        # 判断是否有更新
+        if [ "$LATEST_COMMIT" = "$LAST_COMMIT" ]; then
+          echo "✅ 没有新提交，跳过构建。"
+          echo "skip_build=true" >> $GITHUB_OUTPUT
+        else
+          echo "发现新提交，准备构建..."
+          echo "skip_build=false" >> $GITHUB_OUTPUT
+          echo "$LATEST_COMMIT" > ../last_mesa_commit.txt
+        fi
+
+        echo "MESA_COMMIT=$LATEST_COMMIT" >> $GITHUB_ENV
+        echo "MESA_DATE=$(git log -1 --format=%cd --date=iso)" >> $GITHUB_ENV
+
+    - name: 停止无更新构建
+      if: steps.check_update.outputs.skip_build == 'true'
       run: |
-        cd mesa 
+        echo "🟡 本次 Mesa 无更新，自动终止构建流程。"
+        exit 0
+
+    - name: 构建 Mesa (Zink only)
+      run: |
+        cd mesa
         sudo mkdir -p /data/data/com.termux/files/usr/glibc
         sudo chmod 777 -R /data
+
         mkdir -p builddir
         meson setup builddir \
           --libdir=lib \
@@ -51,15 +82,27 @@ jobs:
           -Dvideo-codecs=all \
           -Dmediafoundation-codecs=all \
           -Degl=disabled
+
         ninja -C builddir
         ninja -C builddir install
+
         VERSION=$(cat VERSION)
         echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-        # ✅ 只打包 lib 目录下的库文件（不含子目录）
-        cd /data/data/com.termux/files/usr/glibc
-        tar -czf termux-glibc-zink-${VERSION}-aarch64.tar.gz lib
-        mv termux-glibc-zink-${VERSION}-aarch64.tar.gz $GITHUB_WORKSPACE
+        cd /data/data/com.termux/files/usr/glibc/lib
+
+        echo "📦 打包库文件..."
+        tar -czf $GITHUB_WORKSPACE/termux-glibc-zink-${VERSION}-aarch64.tar.gz *
+
+        echo "✅ 打包完成，文件信息如下："
+        echo "---------------------------------"
+        du -h --max-depth=1 | sort -hr
+        echo "---------------------------------"
+        echo "总大小: $(du -sh | cut -f1)"
+        echo "生成时间: $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "Mesa 版本: $VERSION"
+        echo "Commit ID: ${MESA_COMMIT}"
+        echo "Commit 时间: ${MESA_DATE}"
 
     - name: 上传构建产物
       uses: actions/upload-artifact@v4
@@ -68,15 +111,24 @@ jobs:
         path: termux-glibc-zink-${{ env.VERSION }}-aarch64.tar.gz
 
     - name: 发布到 GitHub Release
+      if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ github.ref_name }}
         name: zink ${{ env.VERSION }} (aarch64, Termux glibc)
+        body: |
+          ✅ 自动构建成功！
+          - Mesa 版本: ${{ env.VERSION }}
+          - Commit: ${{ env.MESA_COMMIT }}
+          - 提交时间: ${{ env.MESA_DATE }}
+          - 构建平台: Ubuntu 24.04 ARM64
         files: termux-glibc-zink-${{ env.VERSION }}-aarch64.tar.gz
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: 输出版本信息
       run: |
-        echo "✅ Mesa 构建完成"
+        echo "✅ Zink 构建完成"
         echo "版本号: $VERSION"
+        echo "Commit: ${MESA_COMMIT}"
+        echo "时间: ${MESA_DATE}"
