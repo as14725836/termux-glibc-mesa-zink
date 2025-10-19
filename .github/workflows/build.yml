@@ -90,6 +90,7 @@ jobs:
         echo "VERSION=$VERSION" >> $GITHUB_ENV
 
         cd /data/data/com.termux/files/usr/glibc/lib
+        rm -rf dri gbm pkgconfig
 
         echo "📦 打包库文件..."
         tar -czf $GITHUB_WORKSPACE/termux-glibc-zink-${VERSION}-aarch64.tar.gz *
