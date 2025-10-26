@@ -81,7 +81,7 @@ jobs:
           -Dopengl=true \
           -Dvideo-codecs=all \
           -Dmediafoundation-codecs=all \
-          -Degl=disabled
+          -Degl=enabled
 
         ninja -C builddir
         ninja -C builddir install
