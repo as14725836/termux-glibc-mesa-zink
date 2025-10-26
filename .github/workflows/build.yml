@@ -26,7 +26,7 @@ jobs:
         sudo apt update
         sudo apt install libx11-dev libx11-xcb-dev libxcb1-dev libxcb-dri3-dev libxcb-present-dev libxcb-randr0-dev libxcb-sync-dev libxcb-xfixes0-dev libxshmfence-dev libdrm-dev libgbm-dev libegl1-mesa-dev libexpat1-dev libwayland-dev -y
         sudo apt install -y python3-pip
-        pip3 install --user meson ninja
+        pip3 install --user meson ninja mako
     - name: 克隆 Mesa 并检测更新
       id: check_update
       run: |
