@@ -73,7 +73,7 @@ jobs:
           --libdir=lib \
           --prefix=/data/data/com.termux/files/usr/glibc \
           -Dbuildtype=release \
-          -Dgallium-drivers=zink \
+          -Dgallium-drivers=zink,freedreno \
           -Dvulkan-drivers= \
           -Dglvnd=disabled \
           -Dplatforms=x11 \
