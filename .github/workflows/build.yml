@@ -1,16 +1,17 @@
-name: 开发版 Zink (aarch64)
+name: Zink Build (aarch64)
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
+    inputs:
+      branch:
+        description: 'Mesa 分支或 tag（例如 main / 22.3.7）'
+        required: true
+        default: main
   schedule:
-    - cron: '0 6 * * *'  # 每天早上 6 点自动检查 Mesa 更新并构建
+    - cron: '0 6 * * *'  # 每天早上 6 点
 
 permissions:
-  contents: write
-  workflows: write
+  contents: write  # 创建 Tag 与 Release
 
 jobs:
   build:
@@ -27,20 +28,19 @@ jobs:
         sudo apt install -y libxrandr-dev libxxf86vm-dev libxcb-shm0-dev libxcb-glx0-dev \
           libxext-dev libx11-dev libx11-xcb-dev libxcb1-dev libxcb-dri3-dev libxcb-present-dev \
           libxcb-randr0-dev libxcb-sync-dev libxcb-xfixes0-dev libxshmfence-dev libdrm-dev \
-          libgbm-dev libegl1-mesa-dev libexpat1-dev libwayland-dev python3-pip
+          libgbm-dev libegl1-mesa-dev libexpat1-dev libwayland-dev python3-pip gh
         pip3 install --user meson ninja mako
 
     - name: 克隆 Mesa 并检测更新
       id: check_update
       run: |
-        git clone --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git
+        git clone --depth=1 --branch ${{ github.event.inputs.branch }} https://gitlab.freedesktop.org/mesa/mesa.git
         cd mesa
         LATEST_COMMIT=$(git rev-parse HEAD)
         echo "Mesa 最新提交: $LATEST_COMMIT"
 
         if [ -f ../last_mesa_commit.txt ]; then
           LAST_COMMIT=$(cat ../last_mesa_commit.txt)
-          echo "上次构建提交: $LAST_COMMIT"
         else
           LAST_COMMIT="none"
         fi
@@ -59,16 +59,13 @@ jobs:
 
     - name: 停止无更新构建
       if: steps.check_update.outputs.skip_build == 'true'
-      run: |
-        echo "🟡 本次 Mesa 无更新，自动终止构建流程。"
-        exit 0
+      run: exit 0
 
     - name: 构建 Mesa (Zink only)
       run: |
         cd mesa
         sudo mkdir -p /data/data/com.termux/files/usr/glibc
         sudo chmod 777 -R /data
-
         mkdir -p builddir
         meson setup builddir \
           --libdir=lib \
@@ -87,7 +84,6 @@ jobs:
           -Dvideo-codecs=all \
           -Dmediafoundation-codecs=all \
           -Degl=enabled
-
         ninja -C builddir
         ninja -C builddir install
 
@@ -97,7 +93,6 @@ jobs:
         cd /data/data/com.termux/files/usr/glibc/lib
         rm -rf dri gbm pkgconfig
 
-        echo "📦 打包库文件..."
         tar -czf $GITHUB_WORKSPACE/termux-glibc-zink-${VERSION}-aarch64.tar.gz *
         du -sh $GITHUB_WORKSPACE/termux-glibc-zink-${VERSION}-aarch64.tar.gz
 
@@ -107,9 +102,8 @@ jobs:
         name: termux-glibc-zink-${{ env.VERSION }}-aarch64
         path: termux-glibc-zink-${{ env.VERSION }}-aarch64.tar.gz
 
-    - name: 发布到 GitHub Release（独立 Release，不覆盖）
+    - name: 创建独立 Release
       run: |
-        # 生成唯一 tag，保证每次新建 Release
         UNIQUE_TAG="zink-${{ env.VERSION }}-$(date +'%Y%m%d%H%M%S')"
         echo "UNIQUE_TAG=$UNIQUE_TAG" >> $GITHUB_ENV
 
@@ -122,7 +116,7 @@ jobs:
 - Commit: ${{ env.MESA_COMMIT }}
 - 提交时间: ${{ env.MESA_DATE }}
 - 构建平台: Ubuntu 24.04 ARM64
-- Tag: zink-${{ env.VERSION }}" \
+- Tag: $UNIQUE_TAG" \
           --draft=false --prerelease=false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -131,6 +125,6 @@ jobs:
       run: |
         echo "✅ Zink 构建完成"
         echo "版本号: $VERSION"
-        echo "唯一 Tag: $UNIQUE_TAG"
+        echo "Release Tag: $UNIQUE_TAG"
         echo "Commit: ${MESA_COMMIT}"
         echo "时间: ${MESA_DATE}"
