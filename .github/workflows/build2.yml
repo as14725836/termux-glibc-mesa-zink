@@ -6,7 +6,7 @@ on:
     branches:
       - main
   schedule:
-    - cron: '0 6 * * *'  # 🕕 每天早上 6 点自动检查 Mesa 是否有新稳定版并构建
+    - cron: '0 6 * * *'  # 每天早上 6 点自动检查 Mesa 是否有新稳定版并构建
 
 permissions:
   contents: write  # 创建 Tag 和 Release
@@ -21,7 +21,6 @@ jobs:
 
     - name: 安装依赖
       run: |
-        sudo sed -i "s/^Types: deb$/Types: deb deb-src/" /etc/apt/sources.list.d/ubuntu.sources
         sudo apt update
         sudo apt install -y libxrandr-dev libxxf86vm-dev libxcb-shm0-dev libxcb-glx0-dev \
           libxext-dev libx11-dev libx11-xcb-dev libxcb1-dev libxcb-dri3-dev libxcb-present-dev \
@@ -32,18 +31,43 @@ jobs:
     - name: 获取最新 Mesa 稳定版 Tag
       id: get_release
       run: |
-        git ls-remote --tags https://gitlab.freedesktop.org/mesa/mesa.git | \
+        LATEST_TAG=$(git ls-remote --tags https://gitlab.freedesktop.org/mesa/mesa.git | \
           awk -F/ '/refs\/tags\/[0-9]+\.[0-9]+\.[0-9]+$/ {print $3}' | \
-          sort -V | tail -n1 > latest_mesa_tag.txt
-        LATEST_TAG=$(cat latest_mesa_tag.txt)
+          sort -V | tail -n1)
+        if [ -z "$LATEST_TAG" ]; then
+          echo "❌ 无法获取最新 Mesa tag"
+          exit 1
+        fi
         echo "最新稳定版 Mesa Tag: $LATEST_TAG"
         echo "MESA_TAG=$LATEST_TAG" >> $GITHUB_ENV
 
-    - name: 克隆 Mesa 稳定版源码
+    - name: 克隆 Mesa 稳定版源码 (Zink)
       run: |
-        git clone --depth=1 --branch $MESA_TAG https://gitlab.freedesktop.org/mesa/mesa.git
+        set -e
+        LATEST_TAG="${{ env.MESA_TAG }}"
+        echo "📥 克隆 Mesa 标签 $LATEST_TAG ..."
+
+        [ -d mesa ] && rm -rf mesa
+        git clone https://gitlab.freedesktop.org/mesa/mesa.git mesa
         cd mesa
+
+        for i in 1 2 3; do
+          if git fetch --tags && git checkout "tags/$LATEST_TAG"; then
+            echo "✅ 成功检出 Mesa 标签 $LATEST_TAG"
+            break
+          else
+            echo "⚠️ 检出失败，重试第 $i 次..."
+            sleep 5
+            if [ "$i" -eq 3 ]; then
+              echo "❌ 已尝试 3 次仍失败，退出"
+              exit 1
+            fi
+          fi
+        done
+
         git describe --tags
+        GIT_HASH=$(git rev-parse --short HEAD)
+        echo "GIT_HASH=$GIT_HASH" >> $GITHUB_ENV
 
     - name: 构建 Mesa (Zink only)
       run: |
@@ -70,7 +94,7 @@ jobs:
           -Dmediafoundation-codecs=all \
           -Degl=enabled
 
-        ninja -C builddir
+        ninja -C builddir -j$(nproc)
         ninja -C builddir install
 
         VERSION=$MESA_TAG
@@ -123,7 +147,7 @@ jobs:
           ✅ 自动构建完成！
           - Mesa 版本: ${{ env.VERSION }}
           - 构建平台: Ubuntu 24.04 ARM64
-          - Tag: ${{ env.TAG_NAME }}（支持重复版本自动覆盖）
+          - Tag: ${{ env.TAG_NAME }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
