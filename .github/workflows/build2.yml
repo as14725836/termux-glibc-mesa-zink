@@ -118,7 +118,7 @@ jobs:
             - Commit: ${{ env.MESA_COMMIT }}
             - 提交时间: ${{ env.MESA_DATE }}
             - 构建平台: Ubuntu 24.04 ARM64
-            - Tag: ${{ env.TAG_NAME }}（已支持重复版本自动覆盖）
+            - Tag: ${{ env.TAG_NAME }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
