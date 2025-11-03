@@ -27,22 +27,16 @@ jobs:
           libxext-dev libx11-dev libx11-xcb-dev libxcb1-dev libxcb-dri3-dev libxcb-present-dev \
           libxcb-randr0-dev libxcb-sync-dev libxcb-xfixes0-dev libxshmfence-dev libdrm-dev \
           libgbm-dev libegl1-mesa-dev libexpat1-dev libwayland-dev python3-pip
-        pip3 install --user meson ninja mako requests
+        pip3 install --user meson ninja mako
 
     - name: 获取最新 Mesa 稳定版 Tag
       id: get_release
       run: |
-        python3 - <<'EOF'
-        import requests, re
-        url = "https://gitlab.freedesktop.org/mesa/mesa/-/tags"
-        r = requests.get(url)
-        tags = re.findall(r'/mesa/-/tree/(\d+\.\d+\.\d+)', r.text)
-        latest_tag = sorted(tags, key=lambda s: list(map(int,s.split('.'))))[-1]
-        print(f"最新稳定版 Tag: {latest_tag}")
-        with open("../latest_mesa_tag.txt","w") as f:
-            f.write(latest_tag)
-        EOF
-        LATEST_TAG=$(cat ../latest_mesa_tag.txt)
+        git ls-remote --tags https://gitlab.freedesktop.org/mesa/mesa.git | \
+          awk -F/ '/refs\/tags\/[0-9]+\.[0-9]+\.[0-9]+$/ {print $3}' | \
+          sort -V | tail -n1 > latest_mesa_tag.txt
+        LATEST_TAG=$(cat latest_mesa_tag.txt)
+        echo "最新稳定版 Mesa Tag: $LATEST_TAG"
         echo "MESA_TAG=$LATEST_TAG" >> $GITHUB_ENV
 
     - name: 克隆 Mesa 稳定版源码
