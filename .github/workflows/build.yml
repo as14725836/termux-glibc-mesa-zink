@@ -1,4 +1,4 @@
-name: Build zink (aarch64)
+name: 开发版 zink (aarch64)
 
 on:
   workflow_dispatch:
