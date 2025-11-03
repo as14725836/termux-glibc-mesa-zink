@@ -5,12 +5,11 @@ on:
   push:
     branches:
       - main
-      - 'refs/tags/**'
   schedule:
     - cron: '0 6 * * *'  # 🕕 每天早上 6 点自动检查 Mesa 是否有更新并构建
 
 permissions:
-  contents: write  # 允许 GITHUB_TOKEN 创建 Release
+  contents: write  # 允许 GITHUB_TOKEN 创建 Tag 与 Release
 
 jobs:
   build:
@@ -24,9 +23,12 @@ jobs:
       run: |
         sudo sed -i "s/^Types: deb$/Types: deb deb-src/" /etc/apt/sources.list.d/ubuntu.sources
         sudo apt update
-        sudo apt install libxrandr-dev libxxf86vm-dev libxcb-shm0-dev libxcb-glx0-dev libxext-dev libx11-dev libx11-xcb-dev libxcb1-dev libxcb-dri3-dev libxcb-present-dev libxcb-randr0-dev libxcb-sync-dev libxcb-xfixes0-dev libxshmfence-dev libdrm-dev libgbm-dev libegl1-mesa-dev libexpat1-dev libwayland-dev -y
-        sudo apt install -y python3-pip
+        sudo apt install -y libxrandr-dev libxxf86vm-dev libxcb-shm0-dev libxcb-glx0-dev \
+          libxext-dev libx11-dev libx11-xcb-dev libxcb1-dev libxcb-dri3-dev libxcb-present-dev \
+          libxcb-randr0-dev libxcb-sync-dev libxcb-xfixes0-dev libxshmfence-dev libdrm-dev \
+          libgbm-dev libegl1-mesa-dev libexpat1-dev libwayland-dev python3-pip
         pip3 install --user meson ninja mako
+
     - name: 克隆 Mesa 并检测更新
       id: check_update
       run: |
@@ -35,7 +37,6 @@ jobs:
         LATEST_COMMIT=$(git rev-parse HEAD)
         echo "Mesa 最新提交: $LATEST_COMMIT"
 
-        # 获取上次构建记录文件
         if [ -f ../last_mesa_commit.txt ]; then
           LAST_COMMIT=$(cat ../last_mesa_commit.txt)
           echo "上次构建提交: $LAST_COMMIT"
@@ -43,7 +44,6 @@ jobs:
           LAST_COMMIT="none"
         fi
 
-        # 判断是否有更新
         if [ "$LATEST_COMMIT" = "$LAST_COMMIT" ]; then
           echo "✅ 没有新提交，跳过构建。"
           echo "skip_build=true" >> $GITHUB_OUTPUT
@@ -98,16 +98,27 @@ jobs:
 
         echo "📦 打包库文件..."
         tar -czf $GITHUB_WORKSPACE/termux-glibc-zink-${VERSION}-aarch64.tar.gz *
+        du -sh $GITHUB_WORKSPACE/termux-glibc-zink-${VERSION}-aarch64.tar.gz
 
-        echo "✅ 打包完成，文件信息如下："
-        echo "---------------------------------"
-        du -h --max-depth=1 | sort -hr
-        echo "---------------------------------"
-        echo "总大小: $(du -sh | cut -f1)"
-        echo "生成时间: $(date '+%Y-%m-%d %H:%M:%S')"
-        echo "Mesa 版本: $VERSION"
-        echo "Commit ID: ${MESA_COMMIT}"
-        echo "Commit 时间: ${MESA_DATE}"
+    - name: 创建或更新 Tag
+      run: |
+        TAG_NAME="zink-$(date +'%Y-%m-%d')"
+        echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
+
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
+        echo "🔍 检查是否已有 Tag: $TAG_NAME"
+        if git ls-remote --tags origin | grep -q "refs/tags/$TAG_NAME"; then
+          echo "♻️ 发现同名 Tag，准备更新..."
+          git tag -fa "$TAG_NAME" -m "Mesa Zink rebuild $TAG_NAME"
+          git push origin ":refs/tags/$TAG_NAME" || true
+          git push origin "$TAG_NAME" --force
+        else
+          echo "🆕 创建新 Tag: $TAG_NAME"
+          git tag -a "$TAG_NAME" -m "Mesa Zink auto build for $TAG_NAME"
+          git push origin "$TAG_NAME"
+        fi
 
     - name: 上传构建产物
       uses: actions/upload-artifact@v4
@@ -115,19 +126,23 @@ jobs:
         name: termux-glibc-zink-${{ env.VERSION }}-aarch64
         path: termux-glibc-zink-${{ env.VERSION }}-aarch64.tar.gz
 
-    - name: 发布到 GitHub Release
-      if: startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v1
+    - name: 发布到 GitHub Release（自动覆盖）
+      uses: softprops/action-gh-release@v2
       with:
-        tag_name: ${{ github.ref_name }}
-        name: zink ${{ env.VERSION }} (aarch64, Termux glibc)
+        tag_name: ${{ env.TAG_NAME }}
+        name: "zink ${{ env.VERSION }} (aarch64, Termux glibc)"
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+        files: termux-glibc-zink-${{ env.VERSION }}-aarch64.tar.gz
+        append_body: true
         body: |
-          ✅ 自动构建成功！
+          ✅ 自动构建完成！
           - Mesa 版本: ${{ env.VERSION }}
           - Commit: ${{ env.MESA_COMMIT }}
           - 提交时间: ${{ env.MESA_DATE }}
           - 构建平台: Ubuntu 24.04 ARM64
-        files: termux-glibc-zink-${{ env.VERSION }}-aarch64.tar.gz
+          - Tag: ${{ env.TAG_NAME }}（已支持重复版本自动覆盖）
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -135,5 +150,6 @@ jobs:
       run: |
         echo "✅ Zink 构建完成"
         echo "版本号: $VERSION"
+        echo "Tag: $TAG_NAME"
         echo "Commit: ${MESA_COMMIT}"
         echo "时间: ${MESA_DATE}"
