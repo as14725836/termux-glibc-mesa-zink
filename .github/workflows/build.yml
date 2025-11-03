@@ -1,4 +1,4 @@
-name: 开发版 zink (aarch64)
+name: 开发版 Zink (aarch64)
 
 on:
   workflow_dispatch:
@@ -6,10 +6,10 @@ on:
     branches:
       - main
   schedule:
-    - cron: '0 6 * * *'  # 🕕 每天早上 6 点自动检查 Mesa 是否有更新并构建
+    - cron: '0 6 * * *'  # 每天早上 6 点自动检查 Mesa 更新并构建
 
 permissions:
-  contents: write  # 允许 GITHUB_TOKEN 创建 Tag 与 Release
+  contents: write
   workflows: write
 
 jobs:
@@ -101,49 +101,29 @@ jobs:
         tar -czf $GITHUB_WORKSPACE/termux-glibc-zink-${VERSION}-aarch64.tar.gz *
         du -sh $GITHUB_WORKSPACE/termux-glibc-zink-${VERSION}-aarch64.tar.gz
 
-    - name: 创建或更新 Tag
-      run: |
-        TAG_NAME="zink-$(date +'%Y-%m-%d')"
-        echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
-
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-
-        echo "🔍 检查是否已有 Tag: $TAG_NAME"
-        if git ls-remote --tags origin | grep -q "refs/tags/$TAG_NAME"; then
-          echo "♻️ 发现同名 Tag，准备更新..."
-          git tag -fa "$TAG_NAME" -m "Mesa Zink rebuild $TAG_NAME"
-          git push origin ":refs/tags/$TAG_NAME" || true
-          git push origin "$TAG_NAME" --force
-        else
-          echo "🆕 创建新 Tag: $TAG_NAME"
-          git tag -a "$TAG_NAME" -m "Mesa Zink auto build for $TAG_NAME"
-          git push origin "$TAG_NAME"
-        fi
-
     - name: 上传构建产物
       uses: actions/upload-artifact@v4
       with:
         name: termux-glibc-zink-${{ env.VERSION }}-aarch64
         path: termux-glibc-zink-${{ env.VERSION }}-aarch64.tar.gz
 
-    - name: 发布到 GitHub Release（自动覆盖）
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: ${{ env.TAG_NAME }}
-        name: "zink ${{ env.VERSION }} (aarch64, Termux glibc)"
-        draft: false
-        prerelease: false
-        generate_release_notes: true
-        files: termux-glibc-zink-${{ env.VERSION }}-aarch64.tar.gz
-        append_body: true
-        body: |
-          ✅ 自动构建完成！
-          - Mesa 版本: ${{ env.VERSION }}
-          - Commit: ${{ env.MESA_COMMIT }}
-          - 提交时间: ${{ env.MESA_DATE }}
-          - 构建平台: Ubuntu 24.04 ARM64
-          - Tag: ${{ env.TAG_NAME }}
+    - name: 发布到 GitHub Release（独立 Release，不覆盖）
+      run: |
+        # 生成唯一 tag，保证每次新建 Release
+        UNIQUE_TAG="zink-${{ env.VERSION }}-$(date +'%Y%m%d%H%M%S')"
+        echo "UNIQUE_TAG=$UNIQUE_TAG" >> $GITHUB_ENV
+
+        gh release create $UNIQUE_TAG \
+          termux-glibc-zink-${{ env.VERSION }}-aarch64.tar.gz \
+          --title "Zink ${{ env.VERSION }} (aarch64, Termux glibc)" \
+          --notes "✅ 自动构建完成！
+
+- Mesa 版本: ${{ env.VERSION }}
+- Commit: ${{ env.MESA_COMMIT }}
+- 提交时间: ${{ env.MESA_DATE }}
+- 构建平台: Ubuntu 24.04 ARM64
+- Tag: zink-${{ env.VERSION }}" \
+          --draft=false --prerelease=false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -151,6 +131,6 @@ jobs:
       run: |
         echo "✅ Zink 构建完成"
         echo "版本号: $VERSION"
-        echo "Tag: $TAG_NAME"
+        echo "唯一 Tag: $UNIQUE_TAG"
         echo "Commit: ${MESA_COMMIT}"
         echo "时间: ${MESA_DATE}"
