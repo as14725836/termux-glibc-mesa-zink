@@ -1,4 +1,4 @@
-name: 正式版 Zink (aarch64)
+name: 正式版 Zink (aarch64, Stable Release)
 
 on:
   workflow_dispatch:
@@ -31,8 +31,9 @@ jobs:
     - name: 获取最新 Mesa 正式稳定版 Tag
       id: get_release
       run: |
-        # 使用 GitHub 镜像获取最新三段式 tag
-        LATEST_TAG=$(git ls-remote --tags https://github.com/mesa3d/mesa.git | \
+        set -e
+        # 官方 GitLab 仓库
+        LATEST_TAG=$(git ls-remote --tags https://gitlab.freedesktop.org/mesa/mesa.git | \
           awk -F/ '/refs\/tags\/[0-9]+\.[0-9]+\.[0-9]+$/ {print $3}' | sort -V | tail -n1)
         if [ -z "$LATEST_TAG" ]; then
           echo "❌ 无法获取最新 Mesa tag"
@@ -44,20 +45,18 @@ jobs:
     - name: 克隆 Mesa 正式版源码 (Zink)
       run: |
         set -e
-        LATEST_TAG="${{ env.MESA_TAG }}"
-        echo "📥 克隆 Mesa 标签 $LATEST_TAG ..."
-
-        [ -d mesa ] && rm -rf mesa
-        git clone https://github.com/mesa3d/mesa.git mesa
+        rm -rf mesa
+        git clone https://gitlab.freedesktop.org/mesa/mesa.git mesa
         cd mesa
+        git fetch --tags
 
-        # 重试机制，确保 checkout tag 成功
+        # 尝试 3 次 checkout tag
         for i in 1 2 3; do
-          if git fetch --tags && git checkout "tags/$LATEST_TAG" -b build; then
-            echo "✅ 成功切换到 Mesa 正式稳定版 $LATEST_TAG"
+          if git checkout tags/$MESA_TAG -b build; then
+            echo "✅ 成功切换到 Mesa 正式稳定版 $MESA_TAG"
             break
           else
-            echo "⚠️ 检出失败，重试第 $i 次..."
+            echo "⚠️ 第 $i 次 checkout 失败，重试..."
             sleep 5
             if [ "$i" -eq 3 ]; then
               echo "❌ 已尝试 3 次仍失败"
@@ -70,7 +69,7 @@ jobs:
         GIT_HASH=$(git rev-parse --short HEAD)
         echo "GIT_HASH=$GIT_HASH" >> $GITHUB_ENV
 
-    - name: 构建 Mesa (Zink only)
+    - name: 构建 Mesa Zink
       run: |
         cd mesa
         sudo mkdir -p /data/data/com.termux/files/usr/glibc
@@ -82,14 +81,15 @@ jobs:
           --prefix=/data/data/com.termux/files/usr/glibc \
           -Dbuildtype=release \
           -Dgallium-drivers=zink,freedreno \
-          -Dvulkan-drivers= \
-          -Dglvnd=disabled \
           -Dplatforms=x11 \
-          -Degl-native-platform=x11 \
-          -Dllvm=disabled \
-          -Dopengl=true \
           -Dglx=dri \
           -Dglx-direct=true \
+          -Dopengl=true \
+          -Dgles1=enabled \
+          -Dgles2=enabled \
+          -Dllvm=disabled \
+          -Dvulkan-drivers= \
+          -Dglvnd=disabled \
           -Dvideo-codecs=all \
           -Degl=enabled
 
