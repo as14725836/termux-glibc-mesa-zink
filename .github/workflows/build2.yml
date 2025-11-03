@@ -6,10 +6,10 @@ on:
     branches:
       - main
   schedule:
-    - cron: '0 6 * * *'  # 每天早上 6 点自动检查 Mesa 是否有新稳定版并构建
+    - cron: '0 6 * * *'  # 每天早上 6 点自动检查 Mesa 最新稳定版
 
 permissions:
-  contents: write  # 创建 Tag 和 Release
+  contents: write
 
 jobs:
   build:
@@ -25,15 +25,15 @@ jobs:
         sudo apt install -y libxrandr-dev libxxf86vm-dev libxcb-shm0-dev libxcb-glx0-dev \
           libxext-dev libx11-dev libx11-xcb-dev libxcb1-dev libxcb-dri3-dev libxcb-present-dev \
           libxcb-randr0-dev libxcb-sync-dev libxcb-xfixes0-dev libxshmfence-dev libdrm-dev \
-          libgbm-dev libegl1-mesa-dev libexpat1-dev libwayland-dev python3-pip
+          libgbm-dev libegl1-mesa-dev libexpat1-dev libwayland-dev python3-pip git
         pip3 install --user meson ninja mako
 
-    - name: 获取最新 Mesa 稳定版 Tag
+    - name: 获取最新 Mesa 正式稳定版 Tag
       id: get_release
       run: |
-        LATEST_TAG=$(git ls-remote --tags https://gitlab.freedesktop.org/mesa/mesa.git | \
-          awk -F/ '/refs\/tags\/[0-9]+\.[0-9]+\.[0-9]+$/ {print $3}' | \
-          sort -V | tail -n1)
+        # 使用 GitHub 镜像获取最新三段式 tag
+        LATEST_TAG=$(git ls-remote --tags https://github.com/mesa3d/mesa.git | \
+          awk -F/ '/refs\/tags\/[0-9]+\.[0-9]+\.[0-9]+$/ {print $3}' | sort -V | tail -n1)
         if [ -z "$LATEST_TAG" ]; then
           echo "❌ 无法获取最新 Mesa tag"
           exit 1
@@ -41,25 +41,26 @@ jobs:
         echo "最新稳定版 Mesa Tag: $LATEST_TAG"
         echo "MESA_TAG=$LATEST_TAG" >> $GITHUB_ENV
 
-    - name: 克隆 Mesa 稳定版源码 (Zink)
+    - name: 克隆 Mesa 正式版源码 (Zink)
       run: |
         set -e
         LATEST_TAG="${{ env.MESA_TAG }}"
         echo "📥 克隆 Mesa 标签 $LATEST_TAG ..."
 
         [ -d mesa ] && rm -rf mesa
-        git clone https://gitlab.freedesktop.org/mesa/mesa.git mesa
+        git clone https://github.com/mesa3d/mesa.git mesa
         cd mesa
 
+        # 重试机制，确保 checkout tag 成功
         for i in 1 2 3; do
-          if git fetch --tags && git checkout "tags/$LATEST_TAG"; then
-            echo "✅ 成功检出 Mesa 标签 $LATEST_TAG"
+          if git fetch --tags && git checkout "tags/$LATEST_TAG" -b build; then
+            echo "✅ 成功切换到 Mesa 正式稳定版 $LATEST_TAG"
             break
           else
             echo "⚠️ 检出失败，重试第 $i 次..."
             sleep 5
             if [ "$i" -eq 3 ]; then
-              echo "❌ 已尝试 3 次仍失败，退出"
+              echo "❌ 已尝试 3 次仍失败"
               exit 1
             fi
           fi
@@ -85,13 +86,11 @@ jobs:
           -Dglvnd=disabled \
           -Dplatforms=x11 \
           -Degl-native-platform=x11 \
-          -Dxmlconfig=enabled \
           -Dllvm=disabled \
           -Dopengl=true \
           -Dglx=dri \
           -Dglx-direct=true \
           -Dvideo-codecs=all \
-          -Dmediafoundation-codecs=all \
           -Degl=enabled
 
         ninja -C builddir -j$(nproc)
@@ -115,14 +114,11 @@ jobs:
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
 
-        echo "🔍 检查是否已有 Tag: $TAG_NAME"
         if git ls-remote --tags origin | grep -q "refs/tags/$TAG_NAME"; then
-          echo "♻️ 发现同名 Tag，准备更新..."
           git tag -fa "$TAG_NAME" -m "Mesa Zink rebuild $TAG_NAME"
           git push origin ":refs/tags/$TAG_NAME" || true
           git push origin "$TAG_NAME" --force
         else
-          echo "🆕 创建新 Tag: $TAG_NAME"
           git tag -a "$TAG_NAME" -m "Mesa Zink auto build for $TAG_NAME"
           git push origin "$TAG_NAME"
         fi
@@ -147,7 +143,7 @@ jobs:
           ✅ 自动构建完成！
           - Mesa 版本: ${{ env.VERSION }}
           - 构建平台: Ubuntu 24.04 ARM64
-          - Tag: ${{ env.TAG_NAME }}
+          - Tag: ${{ env.TAG_NAME }}（支持重复版本自动覆盖）
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
