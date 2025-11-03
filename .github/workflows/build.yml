@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write  # 允许 GITHUB_TOKEN 创建 Tag 与 Release
+  workflows: write
 
 jobs:
   build:
