@@ -72,13 +72,14 @@ jobs:
           -Dglvnd=disabled \
           -Dplatforms=x11 \
           -Degl-native-platform=x11 \
-          -Dxmlconfig=enabled \
+          -Dxmlconfig=disabled \
           -Dllvm=disabled \
+          -Dxlib-lease=enabled \
           -Dopengl=true \
           -Dglx=dri \
           -Dglx-direct=true \
-          -Dvideo-codecs=all \
-          -Dmediafoundation-codecs=all \
+          -Dgles1=enabled \
+          -Dgles2=enabled \
           -Degl=enabled
         ninja -C builddir
         ninja -C builddir install
