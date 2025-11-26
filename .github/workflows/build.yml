@@ -1,4 +1,4 @@
-name: Build zink (aarch64)
+name: 开发版 Build zink (aarch64)
 
 on:
   workflow_dispatch:
@@ -7,10 +7,10 @@ on:
       - main
       - 'refs/tags/**'
   schedule:
-    - cron: '0 6 * * *'  # 🕕 每天早上 6 点自动检查 Mesa 是否有更新并构建
+    - cron: '0 6 * * *'
 
 permissions:
-  contents: write  # 允许 GITHUB_TOKEN 创建 Release
+  contents: write
 
 jobs:
   build:
@@ -27,6 +27,7 @@ jobs:
         sudo apt install libxrandr-dev libxxf86vm-dev libxcb-shm0-dev libxcb-glx0-dev libxext-dev libx11-dev libx11-xcb-dev libxcb1-dev libxcb-dri3-dev libxcb-present-dev libxcb-randr0-dev libxcb-sync-dev libxcb-xfixes0-dev libxshmfence-dev libdrm-dev libgbm-dev libegl1-mesa-dev libexpat1-dev libwayland-dev -y
         sudo apt install -y python3-pip
         pip3 install --user meson ninja mako
+
     - name: 克隆 Mesa 并检测更新
       id: check_update
       run: |
@@ -34,29 +35,26 @@ jobs:
         cd mesa
         LATEST_COMMIT=$(git rev-parse HEAD)
         echo "Mesa 最新提交: $LATEST_COMMIT"
-        # 获取上次构建记录文件
         if [ -f ../last_mesa_commit.txt ]; then
           LAST_COMMIT=$(cat ../last_mesa_commit.txt)
-          echo "上次构建提交: $LAST_COMMIT"
         else
           LAST_COMMIT="none"
         fi
-        # 判断是否有更新
         if [ "$LATEST_COMMIT" = "$LAST_COMMIT" ]; then
-          echo "✅ 没有新提交，跳过构建。"
           echo "skip_build=true" >> $GITHUB_OUTPUT
         else
-          echo "发现新提交，准备构建..."
           echo "skip_build=false" >> $GITHUB_OUTPUT
           echo "$LATEST_COMMIT" > ../last_mesa_commit.txt
         fi
         echo "MESA_COMMIT=$LATEST_COMMIT" >> $GITHUB_ENV
         echo "MESA_DATE=$(git log -1 --format=%cd --date=iso)" >> $GITHUB_ENV
+
     - name: 停止无更新构建
       if: steps.check_update.outputs.skip_build == 'true'
       run: |
         echo "🟡 本次 Mesa 无更新，自动终止构建流程。"
         exit 0
+
     - name: 构建 Mesa (Zink only)
       run: |
         cd mesa
@@ -83,46 +81,71 @@ jobs:
           -Degl=enabled
         ninja -C builddir
         ninja -C builddir install
+
         VERSION=$(cat VERSION)
         echo "VERSION=$VERSION" >> $GITHUB_ENV
+
         cd /data/data/com.termux/files/usr/glibc/lib
         rm -rf dri gbm pkgconfig
-        echo "📦 打包库文件..."
-        tar -czf $GITHUB_WORKSPACE/termux-glibc-zink-${VERSION}-aarch64.tar.gz *
-        echo "✅ 打包完成，文件信息如下："
-        echo "---------------------------------"
-        du -h --max-depth=1 | sort -hr
-        echo "---------------------------------"
-        echo "总大小: $(du -sh | cut -f1)"
-        echo "生成时间: $(date '+%Y-%m-%d %H:%M:%S')"
-        echo "Mesa 版本: $VERSION"
-        echo "Commit ID: ${MESA_COMMIT}"
-        echo "Commit 时间: ${MESA_DATE}"
+
+        # ——— 仅保留 FULL_TAR ———
+        FULL_TAR="termux-glibc-zink-${VERSION}-aarch64.tar.gz"
+
+        cd /data/data/com.termux/files/usr/glibc
+        tar -czf $GITHUB_WORKSPACE/$FULL_TAR *
+
+        echo "FULL_TAR=$FULL_TAR" >> $GITHUB_ENV
+
+    - name: 生成 SHA256 校验
+      run: |
+        cd $GITHUB_WORKSPACE
+        sha256sum $FULL_TAR > $FULL_TAR.sha256
+
     - name: 上传构建产物
       uses: actions/upload-artifact@v4
       with:
-        name: termux-glibc-zink-${{ env.VERSION }}-aarch64
-        path: termux-glibc-zink-${{ env.VERSION }}-aarch64.tar.gz
+        name: mesa-artifacts-${{ env.VERSION }}-aarch64
+        path: |
+          ${{ env.FULL_TAR }}
+          ${{ env.FULL_TAR }}.sha256
 
     - name: 发布到 GitHub Release
       if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ github.ref_name }}
-        name: zink ${{ env.VERSION }} (aarch64, Termux glibc)
+        tag_name: mesa-${{ env.VERSION }}
+        name: 开发版 Mesa ${{ env.VERSION }} (aarch64, Termux glibc)
         body: |
-          ✅ 自动构建成功！
-          - Mesa 版本: ${{ env.VERSION }}
-          - Commit: ${{ env.MESA_COMMIT }}
-          - 提交时间: ${{ env.MESA_DATE }}
-          - 构建平台: Ubuntu 24.04 ARM64
-        files: termux-glibc-zink-${{ env.VERSION }}-aarch64.tar.gz
+          🔧 **Mesa 自动构建信息**
+          - 🧱 版本: **${{ env.VERSION }}**
+          - 💡 提交: `${{ env.MESA_COMMIT }}`
+          - 🕒 自动构建与打包成功
+          - 📦 产物：
+            - `${{ env.FULL_TAR }}` → 完整 glibc Mesa 环境
+          - 🔐 附带 `.sha256` 校验文件
+        files: |
+          ${{ env.FULL_TAR }}
+          ${{ env.FULL_TAR }}.sha256
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: 输出版本信息
+    - name: 保存最新提交记录
       run: |
-        echo "✅ Zink 构建完成"
-        echo "版本号: $VERSION"
-        echo "Commit: ${MESA_COMMIT}"
-        echo "时间: ${MESA_DATE}"
+        echo "${{ env.MESA_COMMIT }}" > .mesa_latest_commit
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git add .mesa_latest_commit || true
+        git commit -m "Update Mesa commit record to ${{ env.MESA_COMMIT }}" || echo "No new commit to save"
+        git push || echo "⚠️ 推送失败（可能无更改）"
+
+    - name: 输出总结信息
+      run: |
+        echo "======================================"
+        echo "    ✅ Mesa 构建与打包完成"
+        echo "======================================"
+        echo "🔖 Mesa 版本: ${{ env.VERSION }}"
+        echo "💾 提交哈希: ${{ env.MESA_COMMIT }}"
+        echo "📦 产物:"
+        ls -lh ${{ env.FULL_TAR }}*
+        echo "📅 构建时间: $(date)"
+        uname -a
