@@ -60,7 +60,8 @@ jobs:
           -Dglvnd=disabled \
           -Dplatforms=x11 \
           -Dllvm=disabled \
-          -Dglx=xlib \
+          -Dglx=xlib 
+          
         ninja -C builddir
         ninja -C builddir install
         VERSION=$(cat VERSION)
