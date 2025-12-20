@@ -1,0 +1,85 @@
+name: 测试vg (aarch64)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - 'refs/tags/**'
+  schedule:
+    - cron: '0 6 * * *'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+    - name: 检出仓库
+      uses: actions/checkout@v4
+
+    - name: 安装依赖
+      run: |
+        sudo sed -i "s/^Types: deb$/Types: deb deb-src/" /etc/apt/sources.list.d/ubuntu.sources
+        sudo apt update
+        sudo apt install libxrandr-dev libxxf86vm-dev libxcb-shm0-dev libxcb-glx0-dev libxext-dev libx11-dev libx11-xcb-dev libxcb1-dev libxcb-dri3-dev libxcb-present-dev libxcb-randr0-dev libxcb-sync-dev libxcb-xfixes0-dev libxshmfence-dev libdrm-dev libgbm-dev libegl1-mesa-dev libexpat1-dev libwayland-dev -y
+        sudo apt install -y python3-pip
+        pip3 install --user meson ninja mako
+    - name: 克隆 Mesa 正式版
+      run: |
+          echo "📥 克隆 Mesa 仓库..."
+          git clone https://gitlab.freedesktop.org/mesa/mesa.git
+          cd mesa
+          echo "🔍 获取最新稳定标签..."
+          LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+          echo "最新标签: $LATEST_TAG"
+          git checkout $LATEST_TAG
+          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
+          echo "🧾 最新提交:"
+          git log -1 --oneline --decorate
+    - name: 停止无更新构建
+      if: steps.check_update.outputs.skip_build == 'true'
+      run: |
+        echo "🟡 本次 Mesa 无更新，自动终止构建流程。"
+        exit 0
+    - name: 构建 Mesa (Zink only)
+      run: |
+        cd mesa
+        sudo mkdir -p /data/data/com.termux/files/usr/glibc
+        sudo chmod 777 -R /data
+        mkdir -p builddir
+        meson setup builddir \
+          --libdir=lib \
+          --prefix=/data/data/com.termux/files/usr/glibc \
+          -Dbuildtype=release \
+          -Dgallium-va=disabled \
+          -Dgallium-drivers=virgl \
+          -Dvulkan-drivers= \
+          -Dglvnd=disabled \
+          -Dplatforms=x11 \
+          -Dllvm=disabled \
+          -Dglx=xlib \
+        ninja -C builddir
+        ninja -C builddir install
+        VERSION=$(cat VERSION)
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+        cd /data/data/com.termux/files/usr/glibc/lib
+        rm -rf dri gbm pkgconfig
+        # ——— 仅保留 FULL_TAR ———
+        FULL_TAR="termux-glibc-vg-${VERSION}-aarch64.tar.gz"
+        cd /data/data/com.termux/files/usr/glibc
+        tar -czf $GITHUB_WORKSPACE/$FULL_TAR *
+        echo "FULL_TAR=$FULL_TAR" >> $GITHUB_ENV
+    - name: 生成 SHA256 校验
+      run: |
+        cd $GITHUB_WORKSPACE
+        sha256sum $FULL_TAR > $FULL_TAR.sha256
+    - name: 上传构建产物
+      uses: actions/upload-artifact@v4
+      with:
+        name: mesa-artifacts-${{ env.VERSION }}-aarch64
+        path: |
+          ${{ env.FULL_TAR }}
+          ${{ env.FULL_TAR }}.sha256
