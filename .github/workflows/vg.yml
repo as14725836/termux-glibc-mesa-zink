@@ -44,7 +44,7 @@ jobs:
       run: |
         echo "🟡 本次 Mesa 无更新，自动终止构建流程。"
         exit 0
-    - name: 构建 Mesa (Zink only)
+    - name: 构建 Mesa (vg only)
       run: |
         cd mesa
         sudo mkdir -p /data/data/com.termux/files/usr/glibc
@@ -55,7 +55,7 @@ jobs:
           --prefix=/data/data/com.termux/files/usr/glibc \
           -Dbuildtype=release \
           -Dgallium-va=disabled \
-          -Dgallium-drivers=virgl \
+          -Dgallium-drivers=virgl,softpipe \
           -Dvulkan-drivers= \
           -Dglvnd=disabled \
           -Dplatforms=x11 \
