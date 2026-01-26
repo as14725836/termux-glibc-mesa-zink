@@ -97,23 +97,33 @@ jobs:
         cd /data/data/com.termux/files/usr/glibc/lib
         rm -rf dri gbm pkgconfig
 
-        # ——— 仅保留 FULL_TAR ———
-        FULL_TAR="termux-glibc-zink-${VERSION}-aarch64.tar.gz"
-
-        cd /data/data/com.termux/files/usr/glibc
-        tar -czf $GITHUB_WORKSPACE/$FULL_TAR *
-
+    - name: 打包 lib 文件夹（保留文件夹结构）
+      run: |
+        # 返回到 glibc 目录的父目录
+        cd /data/data/com.termux/files/usr
+        
+        # 创建压缩包（包含 lib 文件夹）
+        # 开发版添加 dev 后缀以区分
+        FULL_TAR="termux-glibc-zink-dev-${VERSION}-aarch64.tar.gz"
+        
+        # 只打包 glibc/lib 目录，保持目录结构
+        tar -czf $GITHUB_WORKSPACE/$FULL_TAR glibc/lib/
+        
         echo "FULL_TAR=$FULL_TAR" >> $GITHUB_ENV
+        
+        echo "📦 打包完成，压缩包结构："
+        tar -tzf $GITHUB_WORKSPACE/$FULL_TAR | head -20
 
     - name: 生成 SHA256 校验
       run: |
         cd $GITHUB_WORKSPACE
         sha256sum $FULL_TAR > $FULL_TAR.sha256
+        echo "🔐 生成校验文件完成"
 
     - name: 上传构建产物
       uses: actions/upload-artifact@v4
       with:
-        name: mesa-artifacts-${{ env.VERSION }}-aarch64
+        name: mesa-dev-artifacts-${{ env.VERSION }}-aarch64
         path: |
           ${{ env.FULL_TAR }}
           ${{ env.FULL_TAR }}.sha256
@@ -121,16 +131,26 @@ jobs:
     - name: 发布到 GitHub Release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: mesa-${{ env.VERSION }}
+        tag_name: mesa-dev-${{ env.VERSION }}
         name: 开发版 Mesa ${{ env.VERSION }} (aarch64, Termux glibc)
         body: |
-          🔧 **Mesa 自动构建信息**
-          - 🧱 版本: **${{ env.VERSION }}**
+          🔧 **Mesa 开发版自动构建信息**
+          - 🧱 版本: **${{ env.VERSION }}** (开发版)
           - 💡 提交: `${{ env.MESA_COMMIT }}`
+          - 📅 提交时间: ${{ env.MESA_DATE }}
+          - 📍 架构: aarch64
           - 🕒 自动构建与打包成功
           - 📦 产物：
-            - `${{ env.FULL_TAR }}` → 完整 glibc Mesa 环境
+            - `${{ env.FULL_TAR }}` → 包含 lib 目录的 Mesa 库文件
           - 🔐 附带 `.sha256` 校验文件
+    
+          **使用方法：**
+          1. 解压到 Termux：`tar -xzf ${{ env.FULL_TAR }} -C $PREFIX/`
+          2. 自动将库文件放置到正确位置：`$PREFIX/glibc/lib/`
+          
+          **⚠️ 注意：**
+          - 此为开发版构建，基于最新的 Mesa 主分支
+          - 可能存在不稳定的情况，建议测试使用
         files: |
           ${{ env.FULL_TAR }}
           ${{ env.FULL_TAR }}.sha256
@@ -149,11 +169,13 @@ jobs:
     - name: 输出总结信息
       run: |
         echo "======================================"
-        echo "    ✅ Mesa 构建与打包完成"
+        echo "    ✅ Mesa 开发版构建与打包完成"
         echo "======================================"
-        echo "🔖 Mesa 版本: ${{ env.VERSION }}"
+        echo "🔖 Mesa 版本: ${{ env.VERSION }} (开发版)"
         echo "💾 提交哈希: ${{ env.MESA_COMMIT }}"
-        echo "📦 产物:"
-        ls -lh ${{ env.FULL_TAR }}*
+        echo "📅 提交时间: ${{ env.MESA_DATE }}"
+        echo "📦 产物: ${{ env.FULL_TAR }}"
+        echo "📁 压缩包内容:"
+        echo "   glibc/lib/ (包含所有 Mesa 库文件)"
         echo "📅 构建时间: $(date)"
         uname -a
