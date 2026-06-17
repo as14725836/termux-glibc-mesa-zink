@@ -81,13 +81,13 @@ jobs:
           -Degl-native-platform=x11 \
           -Dxmlconfig=disabled \
           -Dllvm=disabled \
-          -Dxlib-lease=enabled \
+          -Dxlib-lease=disabled \
           -Dopengl=true \
           -Dglx=dri \
-          -Dglx-direct=true \
-          -Dgles1=enabled \
-          -Dgles2=enabled \
-          -Degl=enabled
+          -Dglx-direct=false \
+          -Dgles1=disabled \
+          -Dgles2=disabled \
+          -Degl=disabled
         ninja -C builddir
         ninja -C builddir install
 
