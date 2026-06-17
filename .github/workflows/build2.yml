@@ -74,11 +74,11 @@ jobs:
           -Dllvm=disabled \
           -Dxlib-lease=enabled \
           -Dopengl=true \
-          -Dglx=dri \
+          -Dglx=xilb \
           -Dglx-direct=true \
-          -Dgles1=enabled \
-          -Dgles2=enabled \
-          -Degl=enabled
+          -Dgles1=disabled \
+          -Dgles2=disabled \
+          -Degl=disabled
         ninja -C builddir
         ninja -C builddir install
 
