@@ -72,9 +72,9 @@ jobs:
           -Degl-native-platform=x11 \
           -Dxmlconfig=disabled \
           -Dllvm=disabled \
-          -Dxlib-lease=enabled \
-          -Dopengl=true \
-          -Dglx=xlib \
+          -Dxlib-lease=disabled \
+          -Dopengl=false \
+          -Dglx=dri \
           -Dglx-direct=true \
           -Dgles1=disabled \
           -Dgles2=disabled \
