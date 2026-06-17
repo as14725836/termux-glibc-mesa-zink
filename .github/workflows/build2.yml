@@ -74,7 +74,7 @@ jobs:
           -Dllvm=disabled \
           -Dxlib-lease=enabled \
           -Dopengl=true \
-          -Dglx=xilb \
+          -Dglx=xlib \
           -Dglx-direct=true \
           -Dgles1=disabled \
           -Dgles2=disabled \
