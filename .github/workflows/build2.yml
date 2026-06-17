@@ -73,7 +73,7 @@ jobs:
           -Dxmlconfig=disabled \
           -Dllvm=disabled \
           -Dxlib-lease=disabled \
-          -Dopengl=false \
+          -Dopengl=true \
           -Dglx=dri \
           -Dglx-direct=true \
           -Dgles1=disabled \
