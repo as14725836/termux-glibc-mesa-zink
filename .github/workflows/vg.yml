@@ -72,7 +72,6 @@ jobs:
           --prefix=/data/data/com.termux/files/usr/glibc \
             -Dgallium-va=disabled \
             -Dgallium-drivers=virgl,softpipe \
-            -Dshared-glapi=enabled \
             -Dvulkan-drivers= \
             -Dglx=xlib \
             -Dplatforms=x11 \
