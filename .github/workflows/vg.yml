@@ -33,7 +33,7 @@ jobs:
       run: |
         sudo sed -i "s/^Types: deb$/Types: deb deb-src/" /etc/apt/sources.list.d/ubuntu.sources
         sudo apt update
-        sudo apt install libxrandr-dev libxxf86vm-dev libxcb-shm0-dev libxcb-glx0-dev libxext-dev libx11-dev libx11-xcb-dev libxcb1-dev libxcb-dri3-dev libxcb-present-dev libxcb-randr0-dev libxcb-sync-dev libxcb-xfixes0-dev libxshmfence-dev libdrm-dev libgbm-dev libegl1-mesa-dev libexpat1-dev libwayland-dev -y
+        sudo apt install libxrandr-dev libxxf86vm-dev libxcb-shm0-dev llvm-19 libxcb-glx0-dev libxext-dev libx11-dev libx11-xcb-dev libxcb1-dev libxcb-dri3-dev libxcb-present-dev libxcb-randr0-dev libxcb-sync-dev libxcb-xfixes0-dev libxshmfence-dev libdrm-dev libgbm-dev libegl1-mesa-dev libexpat1-dev libwayland-dev -y
         sudo apt install -y python3-pip
         pip3 install --user meson ninja mako
     - name: 克隆 Mesa 正式版
@@ -75,6 +75,7 @@ jobs:
             -Dvulkan-drivers= \
             -Dglx=xlib \
             -Dplatforms=x11 \
+            -Dshared-glapi=enabled \
             -Dbuildtype=release
           
         ninja -C builddir
