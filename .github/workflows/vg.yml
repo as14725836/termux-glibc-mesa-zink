@@ -39,7 +39,7 @@ jobs:
     - name: 克隆 Mesa 正式版
       run: |
           echo "📥 克隆 Mesa 仓库..."
-          git clone https://gitlab.freedesktop.org/mesa/mesa.git
+          git clone https://github.com/lfdevs/mesa-for-android-container mesa
           cd mesa
           echo "🔍 获取最新稳定标签..."
           LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
@@ -48,6 +48,14 @@ jobs:
           echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
           echo "🧾 最新提交:"
           git log -1 --oneline --decorate
+          # 直接修改第 28 行的路径
+          sed -i '28s|/tmp/.virgl_test|/data/data/com.termux/files/usr/tmp/.virgl_test|' src/virtio/vtest/vtest_protocol.h
+
+          apply_patch() {
+          patch -p1 -N -f < "$1" || true
+          find . -name "*.rej" -delete 2>/dev/null || true
+          }
+          apply_patch "$GITHUB_WORKSPACE/mesa-virgl-xlib-force.patch"
     - name: 停止无更新构建
       if: steps.check_update.outputs.skip_build == 'true'
       run: |
@@ -62,14 +70,13 @@ jobs:
         meson setup builddir \
           --libdir=lib \
           --prefix=/data/data/com.termux/files/usr/glibc \
-          -Dbuildtype=release \
-          -Dgallium-va=disabled \
-          -Dgallium-drivers=virgl,softpipe \
-          -Dvulkan-drivers= \
-          -Dglvnd=disabled \
-          -Dplatforms=x11 \
-          -Dllvm=disabled \
-          -Dglx=xlib 
+            -Dgallium-va=disabled \
+            -Dgallium-drivers=virgl \
+            -Dshared-glapi=enabled \
+            -Dvulkan-drivers= \
+            -Dglx=xlib \
+            -Dplatforms=x11 \
+            -Dbuildtype=release
           
         ninja -C builddir
         ninja -C builddir install
