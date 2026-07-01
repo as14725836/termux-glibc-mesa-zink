@@ -1,0 +1,63 @@
+diff --git a/src/gallium/auxiliary/target-helpers/inline_sw_helper.h b/src/gallium/auxiliary/target-helpers/inline_sw_helper.h
+index ddb67b3..a3b29e5 100644
+--- a/src/gallium/auxiliary/target-helpers/inline_sw_helper.h
++++ b/src/gallium/auxiliary/target-helpers/inline_sw_helper.h
+@@ -20,10 +20,10 @@
+ #include "llvmpipe/lp_public.h"
+ #endif
+ 
+-#ifdef GALLIUM_VIRGL
++//#ifdef GALLIUM_VIRGL
+ #include "virgl/virgl_public.h"
+ #include "virgl/vtest/virgl_vtest_public.h"
+-#endif
++//#endif
+ 
+ #ifdef GALLIUM_D3D12
+ #include "d3d12/d3d12_public.h"
+@@ -39,18 +39,18 @@ sw_screen_create_named(struct sw_winsys *winsys, const char *driver)
+       screen = llvmpipe_create_screen(winsys);
+ #endif
+ 
+-#if defined(GALLIUM_VIRGL)
+-   if (screen == NULL && strcmp(driver, "virpipe") == 0) {
++//#if defined(GALLIUM_VIRGL)
++   //if (screen == NULL && strcmp(driver, "virpipe") == 0) {
+       struct virgl_winsys *vws;
+       vws = virgl_vtest_winsys_wrap(winsys);
+       screen = virgl_create_screen(vws, NULL);
+-   }
+-#endif
++   //}
++//#endif
+ 
+-#if defined(GALLIUM_SOFTPIPE)
+-   if (screen == NULL && strcmp(driver, "softpipe") == 0)
+-      screen = softpipe_create_screen(winsys);
+-#endif
++//#if defined(GALLIUM_SOFTPIPE)
++   //if (screen == NULL && strcmp(driver, "softpipe") == 0)
++      //screen = softpipe_create_screen(winsys);
++//#endif
+ 
+ #if defined(GALLIUM_ZINK)
+    if (screen == NULL && strcmp(driver, "zink") == 0)
+diff --git a/src/gallium/drivers/virgl/virgl_screen.c b/src/gallium/drivers/virgl/virgl_screen.c
+index 6d4b84c..cc4a662 100644
+--- a/src/gallium/drivers/virgl/virgl_screen.c
++++ b/src/gallium/drivers/virgl/virgl_screen.c
+@@ -779,11 +779,11 @@ static void virgl_flush_frontbuffer(struct pipe_screen *screen,
+    struct virgl_screen *vscreen = virgl_screen(screen);
+    struct virgl_winsys *vws = vscreen->vws;
+    struct virgl_resource *vres = virgl_resource(res);
+-   struct virgl_context *vctx = virgl_context(ctx);
++   //struct virgl_context *vctx = virgl_context(ctx);
+ 
+    if (vws->flush_frontbuffer) {
+-      virgl_flush_eq(vctx, vctx, NULL);
+-      vws->flush_frontbuffer(vws, vctx->cbuf, vres->hw_res, level, layer, winsys_drawable_handle,
++      //virgl_flush_eq(vctx, vctx, NULL);
++      vws->flush_frontbuffer(vws, NULL, vres->hw_res, level, layer, winsys_drawable_handle,
+                              nboxes == 1 ? sub_box : NULL);
+    }
+ }
